@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "872794482479",
+    "project_id": "creeatore",
+    "storage_bucket": "creeatore.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:872794482479:android:9a4af4e76706a34d2d63da",
+        "android_client_info": {
+          "package_name": "com.creeatore.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZC9u3H2fR5_9Mbp-KKHvLZigliFp3h-8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
