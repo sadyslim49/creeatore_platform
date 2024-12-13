@@ -13,28 +13,30 @@ class _CreatorHomeScreenState extends State<CreatorHomeScreen> {
   int _selectedIndex = 0;
 
   final List<Widget> _screens = [
-    const ExploreTab(),
-    const UploadTab(),
+    const HomeTab(),
     const CreatorProfileTab(),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.explore),
-            label: 'Explore',
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _screens,
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (int index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home),
+            label: 'Home',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.add_circle_outline),
-            label: 'Upload',
-          ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.person),
             label: 'Profile',
           ),
@@ -44,24 +46,13 @@ class _CreatorHomeScreenState extends State<CreatorHomeScreen> {
   }
 }
 
-class ExploreTab extends StatelessWidget {
-  const ExploreTab({super.key});
+class HomeTab extends StatelessWidget {
+  const HomeTab({super.key});
 
   @override
   Widget build(BuildContext context) {
     return const Center(
-      child: Text('Explore Brands'),
-    );
-  }
-}
-
-class UploadTab extends StatelessWidget {
-  const UploadTab({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text('Upload Content'),
+      child: Text('Home'),
     );
   }
 }
