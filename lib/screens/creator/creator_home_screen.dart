@@ -1,19 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../models/creator_profile.dart';
+import 'edit_profile_screen.dart';
 
-class CreatorHomeScreen extends StatelessWidget {
+class CreatorHomeScreen extends StatefulWidget {
   const CreatorHomeScreen({super.key});
+
+  @override
+  State<CreatorHomeScreen> createState() => _CreatorHomeScreenState();
+}
+
+class _CreatorHomeScreenState extends State<CreatorHomeScreen> {
+  int _selectedIndex = 0;
 
   @override
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context, listen: false);
+    final user = authService.currentUser;
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Creator Dashboard'),
+        title: Text(_selectedIndex == 0 ? 'Creator Dashboard' : 'Profile'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -31,282 +39,153 @@ class CreatorHomeScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Center(
-        child: Text('Welcome, ${authService.currentUser?.email ?? 'Creator'}!'),
-      ),
-    );
-  }
-}
-
-class HomeTab extends StatelessWidget {
-  const HomeTab({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text('Home'),
-    );
-  }
-}
-
-class CreatorProfileTab extends StatefulWidget {
-  const CreatorProfileTab({super.key});
-
-  @override
-  State<CreatorProfileTab> createState() => _CreatorProfileTabState();
-}
-
-class _CreatorProfileTabState extends State<CreatorProfileTab> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _bioController = TextEditingController();
-  bool _isLoading = false;
-  bool _isInitialized = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUserProfile();
-  }
-
-  Future<void> _loadUserProfile() async {
-    final user = FirebaseAuth.instance.currentUser;
-    print('Loading profile for user: ${user?.uid}');
-    
-    if (user == null) {
-      print('No user found during profile load');
-      if (mounted) {
-        final authService = Provider.of<AuthService>(context, listen: false);
-        print('Redirecting to login...');
-        authService.signOut();
-      }
-      return;
-    }
-
-    try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-
-      if (mounted) {
-        setState(() {
-          _nameController.text = user.displayName ?? '';
-          _bioController.text = userDoc.data()?['bio'] ?? '';
-          _isInitialized = true;
-          print('Profile loaded successfully');
-          print('Display Name: ${_nameController.text}');
-          print('Bio: ${_bioController.text}');
-        });
-      }
-    } catch (e) {
-      print('Error loading profile: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading profile: $e'),
-            backgroundColor: Colors.red,
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          // Home Tab
+          Center(
+            child: Text('Welcome, ${user?.email ?? 'Creator'}!'),
           ),
-        );
-      }
-    }
-  }
+          // Profile Tab
+          if (user != null)
+            StreamBuilder<CreatorProfile?>(
+              stream: authService.creatorProfileStream(user.uid),
+              builder: (context, snapshot) {
+                print('Profile stream state: ${snapshot.connectionState}');
+                print('Profile stream data: ${snapshot.data}');
+                print('Profile stream error: ${snapshot.error}');
 
-  Future<void> _updateProfile() async {
-    print('Update profile button pressed');
-    
-    if (_formKey.currentState!.validate()) {
-      print('Form validation passed');
-      setState(() {
-        _isLoading = true;
-        print('Set loading state to true');
-      });
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
 
-      try {
-        final user = FirebaseAuth.instance.currentUser;
-        print('Current user: ${user?.uid}');
-        
-        if (user != null) {
-          print('Updating profile for user: ${user.uid}');
-          print('New display name: ${_nameController.text}');
-          print('New bio: ${_bioController.text}');
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Error: ${snapshot.error}'),
+                  );
+                }
 
-          // Update Firebase Auth display name
-          await user.updateDisplayName(_nameController.text);
-          print('Firebase Auth display name updated successfully');
+                if (!snapshot.hasData) {
+                  return const Center(
+                    child: Text('No profile data found'),
+                  );
+                }
 
-          // Update Firestore data
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .update({
-            'displayName': _nameController.text,
-            'bio': _bioController.text,
-            'lastUpdated': FieldValue.serverTimestamp(),
-          });
-          print('Firestore profile data updated successfully');
+                final profile = snapshot.data!;
 
-          if (mounted) {
-            print('Showing success message');
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Profile updated successfully'),
-                backgroundColor: Colors.green,
-                duration: Duration(seconds: 2),
-              ),
-            );
-          }
-        } else {
-          print('Error: No user found');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Error: No user found'),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 2),
-              ),
-            );
-          }
-        }
-      } catch (e) {
-        print('Error updating profile: $e');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error updating profile: $e'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 2),
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: CircleAvatar(
+                          radius: 50,
+                          backgroundImage: profile.photoUrl != null
+                              ? NetworkImage(profile.photoUrl!)
+                              : null,
+                          child: profile.photoUrl == null
+                              ? const Icon(Icons.person, size: 50)
+                              : null,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Center(
+                        child: Text(
+                          profile.displayName,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                      ),
+                      if (profile.bio != null && profile.bio!.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Center(
+                          child: Text(
+                            profile.bio!,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => EditProfileScreen(
+                                profile: profile,
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.edit),
+                        label: const Text('Edit Profile'),
+                      ),
+                      const SizedBox(height: 16),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Account Information',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const Divider(),
+                              ListTile(
+                                leading: const Icon(Icons.email),
+                                title: const Text('Email'),
+                                subtitle: Text(profile.email),
+                              ),
+                              ListTile(
+                                leading: const Icon(Icons.calendar_today),
+                                title: const Text('Member Since'),
+                                subtitle: Text(
+                                  profile.createdAt.toLocal().toString().split(' ')[0],
+                                ),
+                              ),
+                              const ListTile(
+                                leading: Icon(Icons.star),
+                                title: Text('Account Type'),
+                                subtitle: Text('Creator'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            )
+          else
+            const Center(
+              child: CircularProgressIndicator(),
             ),
-          );
-        }
-      } finally {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-            print('Set loading state back to false');
-          });
-        }
-      }
-    } else {
-      print('Form validation failed');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final authService = Provider.of<AuthService>(context);
-    final user = FirebaseAuth.instance.currentUser;
-    print('Building profile screen for user: ${user?.uid}');
-
-    // Redirect if not authenticated
-    if (user == null) {
-      print('User is null, redirecting to login...');
-      Future.microtask(() => authService.signOut());
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    // Show loading while initializing
-    if (!_isInitialized) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    // Show loading during updates
-    if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Edit Profile'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => authService.signOut(),
-          ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 24),
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Display Name',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    print('Display name validation failed: empty value');
-                    return 'Please enter your name';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _bioController,
-                decoration: const InputDecoration(
-                  labelText: 'Bio',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.description),
-                ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : () {
-                    print('Update button tapped');
-                    _updateProfile();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Text(
-                          'Update Profile',
-                          style: TextStyle(fontSize: 16),
-                        ),
-                ),
-              ),
-              if (user?.email != null) ...[
-                const SizedBox(height: 16),
-                Text(
-                  'Email: ${user!.email}',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
-            ],
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (int index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home),
+            label: 'Home',
           ),
-        ),
+          NavigationDestination(
+            icon: Icon(Icons.person),
+            label: 'Profile',
+          ),
+        ],
       ),
     );
   }

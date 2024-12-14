@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/creator_profile.dart';
 
 class AuthService {
   final FirebaseAuth auth;
@@ -18,6 +19,77 @@ class AuthService {
 
   // Auth state changes stream
   Stream<User?> get authStateChanges => auth.authStateChanges();
+
+  // Get creator profile stream
+  Stream<CreatorProfile?> creatorProfileStream(String uid) {
+    print('Fetching profile stream for uid: $uid');
+    return firestore
+        .collection('creators')
+        .doc(uid)
+        .snapshots()
+        .map((doc) {
+          print('Got profile snapshot: ${doc.exists ? 'exists' : 'does not exist'}');
+          if (!doc.exists) {
+            print('Creating new profile for user');
+            final user = auth.currentUser;
+            if (user != null) {
+              final newProfile = CreatorProfile(
+                uid: user.uid,
+                email: user.email!,
+                displayName: user.displayName ?? user.email!.split('@')[0],
+                createdAt: DateTime.now(),
+                updatedAt: DateTime.now(),
+              );
+              firestore
+                  .collection('creators')
+                  .doc(uid)
+                  .set(newProfile.toMap())
+                  .then((_) => print('New profile created successfully'))
+                  .catchError((e) => print('Error creating profile: $e'));
+              return newProfile;
+            }
+            return null;
+          }
+          return CreatorProfile.fromMap(doc.data()!);
+        });
+  }
+
+  // Get creator profile
+  Future<CreatorProfile?> getCreatorProfile(String uid) async {
+    final doc = await firestore.collection('creators').doc(uid).get();
+    return doc.exists ? CreatorProfile.fromMap(doc.data()!) : null;
+  }
+
+  // Update creator profile
+  Future<void> updateCreatorProfile(CreatorProfile profile) async {
+    await firestore
+        .collection('creators')
+        .doc(profile.uid)
+        .set(profile.toMap(), SetOptions(merge: true));
+  }
+
+  // Create user document in Firestore
+  Future<void> _createUserDocument(User user) async {
+    print('Creating user document for: ${user.uid}');
+    final creatorProfile = CreatorProfile(
+      uid: user.uid,
+      email: user.email!,
+      displayName: user.displayName ?? user.email!.split('@')[0],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    try {
+      await firestore
+          .collection('creators')
+          .doc(user.uid)
+          .set(creatorProfile.toMap());
+      print('User document created successfully');
+    } catch (e) {
+      print('Error creating user document: $e');
+      rethrow;
+    }
+  }
 
   // Email & Password Sign Up
   Future<UserCredential> signUpWithEmail(String email, String password) async {
@@ -127,48 +199,11 @@ class AuthService {
     }
   }
 
-  // Password Reset
-  Future<void> resetPassword(String email) async {
-    try {
-      await auth.sendPasswordResetEmail(email: email);
-    } catch (e) {
-      throw _handleAuthException(e);
-    }
-  }
-
-  // Create user document in Firestore
-  Future<void> _createUserDocument(User user) async {
-    await firestore.collection('users').doc(user.uid).set({
-      'email': user.email,
-      'displayName': user.displayName ?? user.email?.split('@')[0],
-      'photoURL': user.photoURL,
-      'createdAt': FieldValue.serverTimestamp(),
-      'lastLogin': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-  }
-
-  // Handle Authentication Exceptions
   String _handleAuthException(dynamic e) {
+    print('Auth Error: $e');
     if (e is FirebaseAuthException) {
-      switch (e.code) {
-        case 'weak-password':
-          return 'The password provided is too weak.';
-        case 'email-already-in-use':
-          return 'An account already exists for that email.';
-        case 'invalid-email':
-          return 'Invalid email address.';
-        case 'user-disabled':
-          return 'This user account has been disabled.';
-        case 'user-not-found':
-          return 'No user found for that email.';
-        case 'wrong-password':
-          return 'Wrong password provided.';
-        case 'operation-not-allowed':
-          return 'This sign in method is not enabled.';
-        default:
-          return 'Authentication error: ${e.message}';
-      }
+      return e.message ?? 'Authentication error occurred';
     }
-    return 'An error occurred: $e';
+    return e.toString();
   }
 }
