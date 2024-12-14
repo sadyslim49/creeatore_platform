@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import 'signup_screen.dart';
@@ -30,41 +31,22 @@ class _LoginScreenState extends State<LoginScreen> {
       try {
         setState(() {
           _isLoading = true;
+          _errorMessage = null;
         });
 
-        // Sign in with email and password
-        final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
+        print('Attempting to sign in with email: ${_emailController.text}');
+        final authService = Provider.of<AuthService>(context, listen: false);
+        await authService.signInWithEmail(
+          _emailController.text.trim(),
+          _passwordController.text,
         );
-
-        if (userCredential.user != null) {
-          // Navigate to home screen or dashboard
-          if (mounted) {
-            Navigator.pushReplacementNamed(context, '/home');
-          }
-        }
-      } on FirebaseAuthException catch (e) {
-        String errorMessage = 'An error occurred during sign in';
-        
-        if (e.code == 'user-not-found') {
-          errorMessage = 'No user found with this email';
-        } else if (e.code == 'wrong-password') {
-          errorMessage = 'Wrong password provided';
-        } else if (e.code == 'invalid-email') {
-          errorMessage = 'Invalid email address';
-        }
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage)),
-        );
-        
-        print('Login Error: ${e.code} - ${e.message}');
+        print('Sign in successful');
+        // Navigation will be handled by auth state changes
       } catch (e) {
-        print('Unexpected login error: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('An unexpected error occurred')),
-        );
+        print('Error during sign in: $e');
+        setState(() {
+          _errorMessage = e.toString();
+        });
       } finally {
         if (mounted) {
           setState(() {
@@ -86,6 +68,34 @@ class _LoginScreenState extends State<LoginScreen> {
       await authService.signInWithGoogle();
       // Navigation will be handled by auth state changes
     } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _createTestAccount() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
+      print('Creating test account...');
+      final authService = Provider.of<AuthService>(context, listen: false);
+      await authService.signUpWithEmail(
+        'test@example.com',
+        'password123',
+      );
+      print('Test account created successfully');
+    } catch (e) {
+      print('Error creating test account: $e');
       setState(() {
         _errorMessage = e.toString();
       });
@@ -211,6 +221,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
                   ),
+                  const SizedBox(height: 16),
+
+                  // Test Account Button (for development)
+                  if (kDebugMode)
+                    OutlinedButton(
+                      onPressed: _isLoading ? null : _createTestAccount,
+                      child: const Text('Create Test Account'),
+                    ),
                   const SizedBox(height: 24),
 
                   // Sign Up Link

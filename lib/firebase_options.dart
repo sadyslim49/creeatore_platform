@@ -53,7 +53,7 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBmW_T9HZDtMRtk8sBRvWZxGxUuXHvZS-Q',
+    apiKey: 'AIzaSyCZC9u3H2fR5_9Mbp-KKHvLZigliFp3h-8',
     appId: '1:1012647111548:web:a2e1b9e0f3b8f3b3f3b8f3',
     messagingSenderId: '1012647111548',
     projectId: 'creeatore-platform',
