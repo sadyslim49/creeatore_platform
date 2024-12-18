@@ -22,15 +22,23 @@ class Reel {
   });
 
   factory Reel.fromMap(Map<String, dynamic> map, String id) {
+    // Handle createdAt field which could be a Timestamp or null
+    DateTime parseCreatedAt() {
+      final createdAt = map['createdAt'];
+      if (createdAt == null) return DateTime.now();
+      if (createdAt is Timestamp) return createdAt.toDate();
+      return DateTime.now();
+    }
+
     return Reel(
       id: id,
-      creatorId: map['creatorId'] as String,
-      videoUrl: map['videoUrl'] as String,
+      creatorId: map['creatorId'] as String? ?? '',
+      videoUrl: map['videoUrl'] as String? ?? '',
       caption: map['caption'] as String?,
       thumbnailUrl: map['thumbnailUrl'] as String?,
-      createdAt: (map['createdAt'] as Timestamp).toDate(),
-      likes: (map['likes'] as num?)?.toInt() ?? 0,
-      views: (map['views'] as num?)?.toInt() ?? 0,
+      createdAt: parseCreatedAt(),
+      likes: int.tryParse(map['likes']?.toString() ?? '0') ?? 0,
+      views: int.tryParse(map['views']?.toString() ?? '0') ?? 0,
     );
   }
 
@@ -41,8 +49,8 @@ class Reel {
       'caption': caption,
       'thumbnailUrl': thumbnailUrl,
       'createdAt': FieldValue.serverTimestamp(),
-      'likes': likes,
-      'views': views,
+      'likes': likes.toString(),
+      'views': views.toString(),
     };
   }
 }

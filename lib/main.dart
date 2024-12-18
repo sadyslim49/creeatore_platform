@@ -39,6 +39,18 @@ void main() async {
     
     final firestore = FirebaseFirestore.instance;
     print('Firestore instance created: ${firestore.hashCode}');
+    
+    // Enable offline persistence
+    await firestore.enablePersistence();
+    
+    // Test Firestore connection
+    try {
+      final testDoc = await firestore.collection('_test').doc('connection').get();
+      print('Firestore connection test: ${testDoc.exists ? 'success' : 'no test document'}');
+    } catch (e) {
+      print('Firestore connection test error: $e');
+    }
+    
   } catch (e) {
     print('Error initializing Firebase: $e');
     print('Stack trace: ${StackTrace.current}');

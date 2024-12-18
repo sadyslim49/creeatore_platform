@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/auth_service.dart';
 import '../../models/creator_profile.dart';
 import '../../models/reel.dart';
@@ -17,6 +18,105 @@ class CreatorHomeScreen extends StatefulWidget {
 
 class _CreatorHomeScreenState extends State<CreatorHomeScreen> {
   int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkFirestore();
+  }
+
+  Future<void> _addSampleReels() async {
+    try {
+      print('Adding sample reels...');
+      final collectionRef = FirebaseFirestore.instance.collection('reels');
+      
+      final sampleReels = [
+        {
+          'creatorId': FirebaseAuth.instance.currentUser?.uid ?? 'test_user',
+          'videoUrl': 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+          'caption': 'Big Buck Bunny - A Classic Animation',
+          'thumbnailUrl': 'https://storage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg',
+          'createdAt': FieldValue.serverTimestamp(),
+          'likes': '0',
+          'views': '0',
+        },
+        {
+          'creatorId': FirebaseAuth.instance.currentUser?.uid ?? 'test_user',
+          'videoUrl': 'https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+          'caption': 'Elephants Dream - Creative Commons',
+          'thumbnailUrl': 'https://storage.googleapis.com/gtv-videos-bucket/sample/images/ElephantsDream.jpg',
+          'createdAt': FieldValue.serverTimestamp(),
+          'likes': '0',
+          'views': '0',
+        },
+        {
+          'creatorId': FirebaseAuth.instance.currentUser?.uid ?? 'test_user',
+          'videoUrl': 'https://storage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+          'caption': 'Tears of Steel - Sci-Fi Short',
+          'thumbnailUrl': 'https://storage.googleapis.com/gtv-videos-bucket/sample/images/TearsOfSteel.jpg',
+          'createdAt': FieldValue.serverTimestamp(),
+          'likes': '0',
+          'views': '0',
+        },
+        {
+          'creatorId': FirebaseAuth.instance.currentUser?.uid ?? 'test_user',
+          'videoUrl': 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+          'caption': 'For Bigger Blazes',
+          'thumbnailUrl': 'https://storage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerBlazes.jpg',
+          'createdAt': FieldValue.serverTimestamp(),
+          'likes': '0',
+          'views': '0',
+        },
+        {
+          'creatorId': FirebaseAuth.instance.currentUser?.uid ?? 'test_user',
+          'videoUrl': 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+          'caption': 'For Bigger Escapes',
+          'thumbnailUrl': 'https://storage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerEscapes.jpg',
+          'createdAt': FieldValue.serverTimestamp(),
+          'likes': '0',
+          'views': '0',
+        }
+      ];
+
+      // Add each reel with a slight delay to maintain order
+      for (var i = 0; i < sampleReels.length; i++) {
+        await Future.delayed(Duration(milliseconds: 500 * i));
+        await collectionRef.add(sampleReels[i]);
+        print('Added reel ${i + 1}/${sampleReels.length}');
+      }
+      print('All sample reels added successfully');
+    } catch (e) {
+      print('Error adding sample reels: $e');
+    }
+  }
+
+  Future<void> _checkFirestore() async {
+    try {
+      print('Checking Firestore access...');
+      final collectionRef = FirebaseFirestore.instance.collection('reels');
+      
+      // Try to get all documents
+      final querySnapshot = await collectionRef.get();
+      print('Collection exists: ${querySnapshot.docs.isNotEmpty}');
+      print('Number of documents: ${querySnapshot.docs.length}');
+      
+      if (querySnapshot.docs.isEmpty) {
+        print('No reels found. Adding sample reels...');
+        await _addSampleReels();
+      }
+
+      // Try to access the test reel
+      final docRef = collectionRef.doc('test_reel');
+      final docSnapshot = await docRef.get();
+      print('Test document exists: ${docSnapshot.exists}');
+      if (docSnapshot.exists) {
+        print('Test document data: ${docSnapshot.data()}');
+      }
+    } catch (e, stackTrace) {
+      print('Firestore access error: $e');
+      print('Stack trace: $stackTrace');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,11 +173,14 @@ class _CreatorHomeScreenState extends State<CreatorHomeScreen> {
                   child: StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
                         .collection('reels')
-                        .where('creatorId', isEqualTo: user?.uid)
                         .orderBy('createdAt', descending: true)
-                        .limit(10)
                         .snapshots(),
                     builder: (context, snapshot) {
+                      print('Debug: Firestore connection details:');
+                      print('Connection state: ${snapshot.connectionState}');
+                      print('Has data: ${snapshot.hasData}');
+                      print('Has error: ${snapshot.hasError}');
+                      
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator());
                       }
@@ -86,31 +189,36 @@ class _CreatorHomeScreenState extends State<CreatorHomeScreen> {
                         return Center(child: Text('Error: ${snapshot.error}'));
                       }
 
-                      final reels = snapshot.data?.docs
-                          .map((doc) => Reel.fromMap(
-                              doc.data() as Map<String, dynamic>, doc.id))
-                          .toList() ??
-                          [];
+                      final docs = snapshot.data?.docs ?? [];
+                      final reels = docs.map((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        try {
+                          return Reel.fromMap(data, doc.id);
+                        } catch (e) {
+                          print('Error parsing reel ${doc.id}: $e');
+                          return null;
+                        }
+                      })
+                      .where((reel) => reel != null)
+                      .cast<Reel>()
+                      .toList();
 
                       if (reels.isEmpty) {
                         return const Center(
-                          child: Text('No reels yet. Create your first reel!'),
+                          child: Text('No reels found. Create your first reel!'),
                         );
                       }
 
                       return ListView.builder(
                         scrollDirection: Axis.horizontal,
                         itemCount: reels.length,
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         itemBuilder: (context, index) {
+                          final reel = reels[index];
                           return SizedBox(
-                            width: 200,
-                            child: Padding(
-                              padding: const EdgeInsets.only(right: 16.0),
-                              child: ReelCard(
-                                reel: reels[index],
-                                autoPlay: index == 0,
-                              ),
+                            width: 300,  
+                            child: Card(
+                              margin: const EdgeInsets.all(8.0),
+                              child: ReelCard(reel: reel),
                             ),
                           );
                         },
