@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/auth_service.dart';
 import '../../models/creator_profile.dart';
+import '../../models/reel.dart';
+import '../../widgets/reel_card.dart';
 import 'edit_profile_screen.dart';
+import 'upload_reel_screen.dart';
 
 class CreatorHomeScreen extends StatefulWidget {
   const CreatorHomeScreen({super.key});
@@ -43,8 +47,93 @@ class _CreatorHomeScreenState extends State<CreatorHomeScreen> {
         index: _selectedIndex,
         children: [
           // Home Tab
-          Center(
-            child: Text('Welcome, ${user?.email ?? 'Creator'}!'),
+          SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    'Welcome, ${user?.email ?? 'Creator'}!',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Text(
+                    'Your Reels',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  height: 300,
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('reels')
+                        .where('creatorId', isEqualTo: user?.uid)
+                        .orderBy('createdAt', descending: true)
+                        .limit(10)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      if (snapshot.hasError) {
+                        return Center(child: Text('Error: ${snapshot.error}'));
+                      }
+
+                      final reels = snapshot.data?.docs
+                          .map((doc) => Reel.fromMap(
+                              doc.data() as Map<String, dynamic>, doc.id))
+                          .toList() ??
+                          [];
+
+                      if (reels.isEmpty) {
+                        return const Center(
+                          child: Text('No reels yet. Create your first reel!'),
+                        );
+                      }
+
+                      return ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: reels.length,
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        itemBuilder: (context, index) {
+                          return SizedBox(
+                            width: 200,
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 16.0),
+                              child: ReelCard(
+                                reel: reels[index],
+                                autoPlay: index == 0,
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Center(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const UploadReelScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.video_call),
+                    label: const Text('Create New Reel'),
+                  ),
+                ),
+              ],
+            ),
           ),
           // Profile Tab
           if (user != null)
